@@ -15,7 +15,6 @@ def get_access_roles(server, username, password, save_path=None):
         offset = 0
         limit = 200
         all_access_roles = []
-
         while True:
             # Get access roles with offset and limit
             show_access_roles_res = client.api_call(
@@ -50,14 +49,12 @@ def get_access_roles(server, username, password, save_path=None):
             print(f"Data saved to {save_path}")
         else:
             print(json.dumps(output_data, indent=2))
-
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Retrieve and print access roles information.")
     parser.add_argument("server", help="Server address")
     parser.add_argument("username", help="Username")
     parser.add_argument("password", help="Password")
     parser.add_argument("--save", help="JSON file path to save the output")
-
     args = parser.parse_args()
 
     get_access_roles(args.server, args.username, args.password, args.save)
