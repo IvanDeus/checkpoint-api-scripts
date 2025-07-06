@@ -62,7 +62,7 @@ Each object in the JSON array must include `"Access Role"` and `"Networks"` keys
 1. Logs into the Check Point Management Server.
 2. Iterates through each access role definition in the JSON file.
 3. Creates an access role linked to specified network objects.
-4. Publishes all changes to apply them in the firewall.
+4. Publishes all changes.
 5. Logs out from the session.
 
 ---
