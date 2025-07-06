@@ -216,3 +216,95 @@ Each entry includes:
 - The generated JSON file can be edited and reused with scripts like `addaccessrolefromfile.py` to restore or replicate access roles.
 
 ---
+
+## 📄 Script: `getnetworksfromaccessroles.py`
+
+### ✅ Purpose:
+This script retrieves all **Access Roles** from a Check Point Firewall using the Management API and extracts the **network objects** associated with each role. The result is saved in a structured JSON file or printed to the console.
+
+This is especially useful for:
+- Auditing access roles
+- Backing up configurations
+- Preparing input files for other scripts like `addaccessrolefromfile.py`
+
+Supports pagination to handle environments with many access roles.
+
+---
+
+## ⚙️ Usage Example
+
+### Command Line:
+```bash
+python getnetworksfromaccessroles.py <server> <username> <password> [--save <output_file.json>]
+```
+
+### Example 1 – Print Output to Console:
+```bash
+python getnetworksfromaccessroles.py 192.168.1.10 admin securepass123
+```
+
+### Example 2 – Save Output to File:
+```bash
+python getnetworksfromaccessroles.py 192.168.1.10 admin securepass123 --save access_roles_networks.json
+```
+
+Where:
+- `192.168.1.10` – IP address of your Check Point Management Server
+- `admin` – administrator username
+- `securepass123` – password for the user
+- `--save` (optional) – save the result into a JSON file instead of printing it
+
+---
+
+## 📁 Output Format (`access_roles_networks.json`)
+
+The output will be an array where each entry contains the access role name and its associated networks:
+
+```json
+[
+    {
+        "Access Role": "HR_Access_Role",
+        "Networks": [
+            {"name": "HR_Network_1"},
+            {"name": "HR_Network_2"}
+        ]
+    },
+    {
+        "Access Role": "DevTeam_Access_Role",
+        "Networks": [
+            {"name": "Development_Network"}
+        ]
+    },
+    {
+        "Access Role": "All_Networks_Role",
+        "Networks": [
+            {"name": "any"}
+        ]
+    }
+]
+```
+
+Each network object includes:
+- `"name"` – the name of the network object in Check Point
+- If the access role allows access to `"any"` network, it's marked accordingly
+
+---
+
+## 🧾 What the Script Does:
+
+1. Logs into the Check Point Management Server.
+2. Retrieves all access roles using pagination (supports large setups).
+3. For each access role, extracts the list of assigned networks.
+4. Structures the data into a custom JSON format suitable for automation.
+5. Either prints the data or saves it to a file.
+6. Logs out after completing the operation.
+
+---
+
+## 🛠 Tips for Use
+
+- This script works well as a **data extraction tool** before bulk updates or backups.
+- The generated JSON file can be edited and used as input for scripts that recreate or update access roles.
+- Ideal for integration into configuration management or CI/CD pipelines.
+
+---
