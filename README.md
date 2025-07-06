@@ -308,3 +308,78 @@ Each network object includes:
 - Ideal for integration into configuration management or CI/CD pipelines.
 
 ---
+
+## 📄 Script: `getoneaccessroleinfo.py`
+
+### ✅ Purpose:
+This script retrieves detailed information about a **specific Access Role** from a Check Point Firewall using the Management API. It logs into the server, fetches full details of the specified access role, and prints the raw JSON response to the console.
+
+It’s useful for:
+- Troubleshooting access roles
+- Viewing configuration details
+- Integrating into automation or validation workflows
+
+---
+
+## ⚙️ Usage Example
+
+### Command Line:
+```bash
+python getoneaccessroleinfo.py <server> <username> <password> <access_role_name>
+```
+
+### Example:
+```bash
+python getoneaccessroleinfo.py 192.168.1.10 admin securepass123 HR_Access_Role
+```
+
+Where:
+- `192.168.1.10` – IP address of your Check Point Management Server
+- `admin` – administrator username
+- `securepass123` – password for the user
+- `HR_Access_Role` – name of the access role you want to inspect
+
+---
+
+## 🧾 What the Script Does:
+
+1. Logs into the Check Point Management Server.
+2. Calls the `show-access-role` API with `"details-level": "full"` for the specified role.
+3. Outputs the complete JSON response, showing all configured properties (networks, users, permissions, etc.).
+4. Logs out after retrieving the data.
+
+---
+
+## 📁 Sample Output (formatted JSON):
+
+```json
+{
+  "name": "HR_Access_Role",
+  "uid": "123e4567-e89b-12d3-a456-426614174000",
+  "type": "access-role",
+  "networks": [
+    {
+      "name": "HR_Network_1",
+      "uid": "a1b2c3d4-5678-efgh-90ab-cdef12345678"
+    }
+  ],
+  "users": [
+    {
+      "dn": "CN=HRGroup,OU=Groups,DC=example,DC=com",
+      "name": "HRGroup"
+    }
+  ],
+  "machines": "any",
+  "remote-access-clients": "any"
+}
+```
+
+This gives you full visibility into how the access role is configured in Check Point.
+
+---
+
+## 🛠 Tips for Use
+
+- This script is ideal when you need to debug or document existing access roles.
+
+---
