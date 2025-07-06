@@ -128,3 +128,91 @@ The access role will be configured with:
 5. Logs out from the session.
 
 ---
+
+## 📄 Script: `getldapgrpsfromaccessroles.py`
+
+### ✅ Purpose:
+This script retrieves **Access Roles** from a Check Point Firewall using the Management API and extracts **LDAP user group information** associated with each role. It outputs or saves the data in a structured JSON format that can be used later to recreate or modify access roles using another script (e.g., `addaccessrolefromfile.py`).
+
+It supports pagination to handle large environments and allows saving output to a file.
+
+---
+
+## ⚙️ Usage Example
+
+### Command Line:
+```bash
+python getldapgrpsfromaccessroles.py <server> <username> <password> [--save <output_file.json>]
+```
+
+### Example 1 – Print Output to Console:
+```bash
+python getldapgrpsfromaccessroles.py 192.168.1.10 admin securepass123
+```
+
+### Example 2 – Save Output to File:
+```bash
+python getldapgrpsfromaccessroles.py 192.168.1.10 admin securepass123 --save access_roles_ldap.json
+```
+
+Where:
+- `192.168.1.10` – IP address of your Check Point Management Server
+- `admin` – administrator username
+- `securepass123` – password for the user
+- `--save` (optional) – save the result into a JSON file instead of printing it
+
+---
+
+## 📁 Output Format (`access_roles_ldap.json`)
+
+The output will be an array containing each access role and its associated LDAP users/groups:
+
+```json
+[
+    {
+        "Access Role": "HR_Access",
+        "Users": [
+            {
+                "name": "SecTeam",
+                "cn": "SecTeam",
+                "dn": "OU=Security,DC=example,DC=com"
+            }
+        ]
+    },
+    {
+        "Access Role": "Dev_Access",
+        "Users": [
+            {
+                "name": "Developers",
+                "cn": "Developers",
+                "dn": "OU=Development,DC=example,DC=com"
+            }
+        ]
+    }
+]
+```
+
+Each entry includes:
+- The full name of the user/group
+- The Common Name (CN)
+- The Distinguished Name (DN), split for easier reuse in other scripts
+
+---
+
+## 🧾 What the Script Does:
+
+1. Logs into the Check Point Management Server.
+2. Retrieves all access roles using pagination (supports large setups).
+3. For each access role, extracts LDAP-based user/group information.
+4. Structures the data into a custom JSON format useful for automation.
+5. Either prints the data or saves it to a file.
+6. Logs out after completing the operation.
+
+---
+
+## 🛠 Tips for Use
+
+- This script is ideal for backing up or analyzing current access role configurations tied to LDAP groups.
+- The generated JSON file can be edited and reused with scripts like `addaccessrolefromfile.py` to restore or replicate access roles.
+
+---
