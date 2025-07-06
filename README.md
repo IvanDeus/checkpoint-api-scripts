@@ -524,3 +524,83 @@ The access role will be updated with the following LDAP users/groups:
 
 ---
 
+## 📄 Script: `shownetworkobjects.py`
+
+### ✅ Purpose:
+This script retrieves and prints network objects (such as hosts, networks, groups, etc.) from a Check Point Firewall using the Management API. It supports filtering by object type and can either include or exclude specified types using the `--negate` flag.
+
+It is useful for:
+- Auditing existing network objects
+- Listing specific object types (e.g., only `host`, `network`, or `group`)
+- Discovering UIDs of objects needed for other automation scripts
+
+Supports pagination to handle large environments with many objects.
+
+---
+
+## ⚙️ Usage Example
+
+### Command Line:
+```bash
+python shownetworkobjects.py <server> <username> <password> <obj_types> [--negate]
+```
+
+### Example 1 – Show All Network Objects:
+```bash
+python shownetworkobjects.py 192.168.1.10 admin securepass123 any
+```
+
+### Example 2 – Show Only Host and Network Objects:
+```bash
+python shownetworkobjects.py 192.168.1.10 admin securepass123 host,network
+```
+
+### Example 3 – Exclude Host Objects:
+```bash
+python shownetworkobjects.py 192.168.1.10 admin securepass123 host --negate
+```
+
+Where:
+- `192.168.1.10` – IP address of your Check Point Management Server
+- `admin` – administrator username
+- `securepass123` – password for the user
+- `<obj_types>` – comma-separated list of object types (e.g., `host`, `network`, `group`, `any`)
+- `--negate` (optional) – show all objects **except** those of the specified types
+
+---
+
+## 📁 Sample Output:
+
+```bash
+Objects of Types: host, network
+UID: 123e4567-e89b-12d3-a456-426614174000, Name: Web_Server, Type: host
+UID: 987cba01-f123-4321-b0a9-876543210fed, Name: Office_Network, Type: network
+UID: abcdef12-3456-7890-abcd-ef1234567890, Name: DMZ_Network, Type: network
+```
+
+Each line includes:
+- `UID`: Unique identifier of the object (useful for API calls)
+- `Name`: Display name in Check Point
+- `Type`: Object type (e.g., `host`, `network`, `group`, etc.)
+
+---
+
+## 🧾 What the Script Does:
+
+1. Logs into the Check Point Management Server.
+2. Retrieves all network objects using pagination (supports large setups).
+3. Filters the results based on provided object types (`host`, `network`, etc.).
+4. Optionally excludes matching types if `--negate` is used.
+5. Prints the list of matching objects to the console.
+6. Logs out after completing the operation.
+
+---
+
+## 🛠 Tips for Use
+
+- Use this script to find UIDs needed for modifying or deleting objects via API.
+- Combine it with other scripts in this repository for full automation workflows.
+- Useful for documentation or discovery before bulk changes.
+
+---
+[ivan deus] 
