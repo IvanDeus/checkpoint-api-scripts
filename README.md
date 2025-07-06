@@ -463,3 +463,64 @@ This format can be generated using the `getldapgrpsfromaccessroles.py` script an
 - You can automate this in CI/CD pipelines or scheduled tasks for consistent policy enforcement.
 
 ---
+
+## 📄 Script: `setoneaccrolewithldapgrp.py`
+
+### ✅ Purpose:
+This script updates a **single Access Role** in a Check Point Firewall, setting its associated **LDAP user groups** using the Management API. It allows specifying multiple LDAP groups from the same domain and applies them to an existing access role.
+
+It is useful for scenarios where you want to:
+- Assign or update LDAP-based user restrictions for a specific access role.
+- Apply changes directly on a Check Point R8x management server.
+
+---
+
+## ⚙️ Usage Example
+
+### Command Line:
+> **Note:** This script is **hardcoded**, meaning most parameters like server, username, password, and access role settings are defined inside the script.
+
+```bash
+python setoneaccrolewithldapgrp.py
+```
+
+### Example Output:
+```bash
+{'name': 'rol11', 'users': [{'source': 'bank', 'selection': 'SecFW_31', 'base-dn': 'OU=GroupsFW,OU=GEN3,OU=Ka,DC=bank,DC=com'}, {'source': 'bank', 'selection': 'SecFW_33', 'base-dn': 'OU=GroupsFW,OU=GEN3,OU=Ka,DC=bank,DC=com'}]}
+Access role 'rol11' updated successfully.
+Changes published successfully.
+```
+
+---
+
+## 📁 Configuration Inside Script
+
+The following variables are hardcoded and should be edited directly in the script:
+
+```python
+server = "localhost"  # IP of Check Point Management Server
+username = "admin"    # Admin username
+password = "123123"   # Admin password
+new_access_role_name = "rol11"  # Name of the access role to update
+```
+
+The access role will be updated with the following LDAP users/groups:
+
+| Field | Value |
+|-------|-------|
+| Source | `bank` (must match an existing LDAP domain) |
+| Selection(s) | `SecFW_31`, `SecFW_33` |
+| Base DN | `OU=GroupsFW,OU=GEN3,OU=Ka,DC=bank,DC=com` |
+
+---
+
+## 🧾 What the Script Does:
+
+1. Connects to the local or remote Check Point Management Server.
+2. Logs in with provided credentials.
+3. Updates the specified access role with new LDAP-based user group definitions.
+4. Publishes the session to apply changes.
+5. Logs out from the session.
+
+---
+
