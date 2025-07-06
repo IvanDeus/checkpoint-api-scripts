@@ -383,3 +383,83 @@ This gives you full visibility into how the access role is configured in Check P
 - This script is ideal when you need to debug or document existing access roles.
 
 ---
+
+## 📄 Script: `setldapgrpsaccessrolesfromfile.py`
+
+### ✅ Purpose:
+This script updates **Check Point Access Roles** by setting or replacing **LDAP user group information** using data from a JSON input file. It is typically used in conjunction with the `getldapgrpsfromaccessroles.py` script to back up, modify, and restore LDAP-based user access configurations.
+
+Supports specifying a single LDAP source domain for all users in the update.
+
+---
+
+## ⚙️ Usage Example
+
+### Command Line:
+```bash
+python setldapgrpsaccessrolesfromfile.py <server> <username> <password> <input_json> <source_domain>
+```
+
+### Example:
+```bash
+python setldapgrpsaccessrolesfromfile.py 192.168.1.10 admin securepass123 updated_access_roles.json bnk
+```
+
+Where:
+- `192.168.1.10` – IP address of your Check Point Management Server
+- `admin` – administrator username
+- `securepass123` – password for the user
+- `updated_access_roles.json` – path to the JSON file containing access role updates
+- `bnk` – LDAP source domain (must match an existing LDAP server name in Check Point)
+
+---
+
+## 📁 Input File Format (`updated_access_roles.json`)
+
+Each entry must contain `"Access Role"` and `"Users"` keys. Each user should include `"cn"` and `"dn"` fields:
+
+```json
+[
+    {
+        "Access Role": "HR_Access_Role",
+        "Users": [
+            {
+                "cn": "HRGroup",
+                "dn": "OU=HR,DC=bnk,DC=com"
+            }
+        ]
+    },
+    {
+        "Access Role": "DevTeam_Access_Role",
+        "Users": [
+            {
+                "cn": "Developers",
+                "dn": "OU=Development,DC=bnk,DC=com"
+            }
+        ]
+    }
+]
+```
+
+This format can be generated using the `getldapgrpsfromaccessroles.py` script and then modified as needed before applying changes.
+
+---
+
+## 🧾 What the Script Does:
+
+1. Logs into the Check Point Management Server.
+2. Reads the input JSON file with updated access role and LDAP user info.
+3. Iteratively updates each access role with the provided LDAP configuration.
+4. Publishes all changes to apply them in the firewall.
+5. Logs out after completing the operation.
+
+---
+
+## 🛠 Tips for Use
+
+- This script is ideal for restoring or updating LDAP-based access roles in bulk.
+- Always test on a small number of roles first to ensure compatibility.
+- Combine this with `getldapgrpsfromaccessroles.py` for safe backup-and-restore workflows.
+- You can automate this in CI/CD pipelines or scheduled tasks for consistent policy enforcement.
+
+---
