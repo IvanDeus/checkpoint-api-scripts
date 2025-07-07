@@ -1,6 +1,5 @@
 # checkpoint-api-scripts
-Check Point firewall management API add or modify multiple objects api scripts
-cpapi required, can run directly from R8x.xx management machine
+Check Point firewall management API scripts collection to add or modify multiple objects. Can run directly from a  R8x.xx management machine. 
 
 ---
 
