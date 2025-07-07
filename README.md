@@ -1,6 +1,10 @@
 # checkpoint-api-scripts
 Check Point firewall management API scripts collection to add or modify multiple objects. Can run directly from a  R8x.xx management machine. 
 
+## Requirements 
+
+cpapi library 
+
 ---
 
 ## 📄 Script: `addaccessrolefromfile.py`
