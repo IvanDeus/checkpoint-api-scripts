@@ -3,7 +3,7 @@ Check Point firewall management API scripts collection to add or modify multiple
 
 ## Requirements 
 
-Official Check Point [cpapi library] https://github.com/CheckPointSW/cp_mgmt_api_python_sdk
+Official Check Point [cpapi library] (https://github.com/CheckPointSW/cp_mgmt_api_python_sdk).
 
 ---
 
