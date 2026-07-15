@@ -2,11 +2,14 @@
 # script that reads your exported JSON rules, fetches all existing network groups from the Check Point Management Server, 
 # and replaces the access-role in the rule's source with a network group sequentially (1st matched rule gets the 1st group, 
 # 2nd matched rule gets the 2nd group, and so on).
-# 
+# Whenever the script finds an item with "type": "access-role", it will swap just that item for the next available network group in line, 
+# while preserving any other objects (like hosts, IPs, or networks) that might exist alongside it in the source field. Infinite Wrap-Around
+
 import argparse
 import json
 import sys
 from cpapi import APIClient, APIClientArgs
+
 
 def get_all_network_groups(client):
     """Fetches all existing network groups from the Management Server."""
@@ -50,11 +53,10 @@ def replace_access_roles_with_groups(
             with open(input_json, "r") as json_file:
                 rules = json.load(json_file)
 
-            # 3. Identify rules where the source contains an access-role
+            # 3. Identify rules where the source contains at least one access-role
             target_rules = []
             for rule in rules:
                 sources = rule.get("source", [])
-                # Check if any source item has type 'access-role'
                 if any(src.get("type") == "access-role" for src in sources):
                     target_rules.append(rule)
 
@@ -63,44 +65,57 @@ def replace_access_roles_with_groups(
                 return
 
             print(
-                f"Found {len(target_rules)} rule(s) containing an access-role in the source."
+                f"Found {len(target_rules)} rule(s) containing access-roles in the source."
             )
 
             # 4. Fetch existing network groups
             network_groups = get_all_network_groups(client)
+            total_groups = len(network_groups)
 
-            if len(network_groups) < len(target_rules):
-                raise Exception(
-                    f"Not enough network groups available ({len(network_groups)}) "
-                    f"to replace {len(target_rules)} rules."
-                )
+            if total_groups == 0:
+                raise Exception("No network groups found on the server to use for replacement.")
 
-            # 5. Replace access roles sequentially
-            for index, rule in enumerate(target_rules):
+            # 5. Replace access roles dynamically
+            group_index = 0  # Running counter for cycling through groups
+
+            for rule in target_rules:
                 rule_uid = rule.get("uid")
                 rule_num = rule.get("rule_number")
-                old_sources = [s.get("name") for s in rule.get("source", [])]
-                assigned_group = network_groups[index]
+                original_sources = rule.get("source", [])
+                
+                new_source_uids = []
+                replacement_log = []
 
-                # Prepare payload: replace entire source with the assigned network group UID
+                # Evaluate each object in the source field independently
+                for src in original_sources:
+                    if src.get("type") == "access-role":
+                        # Pick a group, wrapping around if we exceed the total available
+                        assigned_group = network_groups[group_index % total_groups]
+                        new_source_uids.append(assigned_group["uid"])
+                        
+                        replacement_log.append(f"[{src.get('name')}] -> [{assigned_group['name']}]")
+                        group_index += 1
+                    else:
+                        # Keep original non-access-role object
+                        new_source_uids.append(src.get("uid"))
+
+                # Prepare payload with the mixed/new list of UIDs
                 payload = {
                     "layer": layer_name,
                     "uid": rule_uid,
-                    "source": [assigned_group["uid"]],
+                    "source": new_source_uids,
                 }
 
-                print(
-                    f"\nUpdating Rule #{rule_num} (UID: {rule_uid})..."
-                    f"\n  Old Source(s): {old_sources}"
-                    f"\n  New Source:    {assigned_group['name']} (UID: {assigned_group['uid']})"
-                )
+                print(f"\nUpdating Rule #{rule_num} (UID: {rule_uid})...")
+                for log_msg in replacement_log:
+                    print(f"  Replaced: {log_msg}")
 
                 update_res = client.api_call("set-access-rule", payload)
                 if update_res.success:
-                    print(f"Rule #{rule_num} updated successfully.")
+                    print(f"  -> Rule #{rule_num} updated successfully.")
                 else:
                     error_msg = update_res.error_message
-                    print(f"Failed to update Rule #{rule_num}: {error_msg}")
+                    print(f"  -> Failed to update Rule #{rule_num}: {error_msg}")
                     raise Exception(f"Failed to update rule '{rule_uid}': {error_msg}")
 
             # 6. Publish changes
@@ -122,7 +137,7 @@ def replace_access_roles_with_groups(
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
-        description="Replace access-roles in rule sources with network groups sequentially."
+        description="Replace access-roles in rule sources with network groups, looping groups if necessary."
     )
     parser.add_argument("server", help="Management Server IP/Hostname")
     parser.add_argument("username", help="Admin Username")
@@ -146,3 +161,5 @@ if __name__ == "__main__":
     except Exception as e:
         print(f"\nExecution Error: {e}")
         sys.exit(1)
+
+
