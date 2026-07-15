@@ -1,8 +1,8 @@
 # export_rules.py
 # This script connects to your Check Point Management Server using a SINGLE API session,
 # fetches all available policy packages, prompts you to select one, recursively retrieves 
-# all firewall rules, performs a secondary lookup (show-object) to resolve all unique UIDs 
-# into human-readable names, and saves the final clean result to a JSON file.
+# all firewall rules, performs a secondary lookup (show-object) to resolve UIDs into names,
+# and saves the output with both "name" and "uid" retained for sources, destinations, and services.
 #
 import argparse
 import json
@@ -89,27 +89,30 @@ def select_access_layer(client, package_name):
 def extract_rule_details(rule):
     """Parses a raw API rule object to extract key fields defensively."""
     
-    def get_names(field_list):
-        """Safely extracts names or UIDs from lists of mixed dicts and strings."""
+    def get_object_list(field_list):
+        """Safely extracts UID and Name mappings into structured dictionaries."""
         if not field_list:
             return []
         if not isinstance(field_list, list):
             field_list = [field_list]
             
-        names = []
+        objs = []
         for item in field_list:
             if isinstance(item, dict):
-                # Grab name if available, otherwise fall back to UID for the resolver
-                names.append(item.get("name") or item.get("uid") or "Unknown")
+                uid = item.get("uid") or item.get("name") or "Unknown"
+                name = item.get("name") or uid
+                objs.append({"name": str(name), "uid": str(uid)})
             elif isinstance(item, str):
-                names.append(item)
+                # Initially, standard API returns UIDs as strings
+                objs.append({"name": item, "uid": item})
             else:
-                names.append(str(item))
-        return names
+                val = str(item)
+                objs.append({"name": val, "uid": val})
+        return objs
 
-    sources = get_names(rule.get("source"))
-    destinations = get_names(rule.get("destination"))
-    services = get_names(rule.get("service"))
+    sources = get_object_list(rule.get("source"))
+    destinations = get_object_list(rule.get("destination"))
+    services = get_object_list(rule.get("service"))
 
     # Safely handle action
     action_obj = rule.get("action")
@@ -158,12 +161,12 @@ def extract_unique_uids(rules):
     """Finds all unique 36-character UIDs across all relevant rule fields."""
     uids = set()
     for rule in rules:
-        # Check list fields
+        # Check structured list fields
         for field in ["source", "destination", "service"]:
-            items = rule.get(field, [])
-            for item in items:
-                if isinstance(item, str) and len(item) == 36 and "-" in item:
-                    uids.add(item)
+            for item in rule.get(field, []):
+                uid = item.get("uid", "")
+                if isinstance(uid, str) and len(uid) == 36 and "-" in uid:
+                    uids.add(uid)
         # Check single value fields
         for field in ["action", "log"]:
             val = rule.get(field)
@@ -183,7 +186,6 @@ def resolve_uids_in_memory(client, rules):
     uid_map = {}
 
     for idx, uid in enumerate(unique_uids, 1):
-        # show-object looks up any UID regardless of class (host, network, service, action, etc.)
         res = client.api_call("show-object", {"uid": uid})
         if res.success:
             obj_name = res.data.get("object", {}).get("name", uid)
@@ -192,21 +194,27 @@ def resolve_uids_in_memory(client, rules):
             # If lookup fails (e.g. permission issue or deleted object), keep the UID
             uid_map[uid] = uid
         
-        # Live progress indicator
         print(f" -> Resolving: {idx}/{len(unique_uids)} completed", end="\r")
     print("\nSecondary object retrieval complete.")
 
-    # Map the resolved names back onto the rules structure
+    # Map the resolved names back onto the rules structure while preserving UIDs
     resolved_rules = []
     for rule in rules:
         resolved_rule = rule.copy()
         
-        # Resolve lists
-        resolved_rule["source"] = [uid_map.get(s, s) for s in rule.get("source", [])]
-        resolved_rule["destination"] = [uid_map.get(d, d) for d in rule.get("destination", [])]
-        resolved_rule["service"] = [uid_map.get(srv, srv) for srv in rule.get("service", [])]
+        # Resolve structured list fields (source, destination, service)
+        for field in ["source", "destination", "service"]:
+            resolved_list = []
+            for item in rule.get(field, []):
+                uid = item.get("uid", "")
+                resolved_name = uid_map.get(uid, item.get("name", uid))
+                resolved_list.append({
+                    "name": resolved_name,
+                    "uid": uid
+                })
+            resolved_rule[field] = resolved_list
         
-        # Resolve individual fields
+        # Resolve individual fields (keeping action and log as simple strings)
         resolved_rule["action"] = uid_map.get(rule.get("action"), rule.get("action"))
         resolved_rule["log"] = uid_map.get(rule.get("log"), rule.get("log"))
         
