@@ -13,7 +13,7 @@ def get_all_network_groups(client):
     """Fetches all existing network groups from the Management Server."""
     groups = []
     offset = 0
-    limit = 5000
+    limit = 200
 
     print("Fetching existing network groups from the server...")
     while True:
