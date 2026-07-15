@@ -1,11 +1,13 @@
 # export_rules.py
-# This script connects to your Check Point Management Server, fetches all available policy packages, 
-# prompts you to select one, recursively retrieves all firewall rules using "details-level": "full"
-# (automatically resolving all names in one go), and saves the final result to a clean JSON file.
+# This script connects to your Check Point Management Server using a SINGLE API session,
+# fetches all available policy packages, prompts you to select one, recursively retrieves 
+# all firewall rules, performs a secondary lookup (show-object) to resolve all unique UIDs 
+# into human-readable names, and saves the final clean result to a JSON file.
 #
 import argparse
 import json
 import sys
+import os
 from cpapi import APIClient, APIClientArgs
 
 
@@ -57,11 +59,13 @@ def select_access_layer(client, package_name):
         print(f"No access layers found in package '{package_name}'.")
         sys.exit(1)
 
+    # If only one layer exists, select it automatically
     if len(layers) == 1:
         layer = layers[0]
         print(f"Automatically selected the only access layer: '{layer.get('name')}'\n")
         return layer.get("uid"), layer.get("name")
 
+    # If multiple layers exist, let the user choose
     print("--- Available Access Layers ---")
     for idx, layer in enumerate(layers, 1):
         print(f"[{idx}] {layer.get('name')} (Type: {layer.get('type')})")
@@ -86,7 +90,7 @@ def extract_rule_details(rule):
     """Parses a raw API rule object to extract key fields defensively."""
     
     def get_names(field_list):
-        """Safely extracts names from lists of mixed dicts and strings."""
+        """Safely extracts names or UIDs from lists of mixed dicts and strings."""
         if not field_list:
             return []
         if not isinstance(field_list, list):
@@ -95,7 +99,7 @@ def extract_rule_details(rule):
         names = []
         for item in field_list:
             if isinstance(item, dict):
-                # When using details-level: full, the name is always inside this dict
+                # Grab name if available, otherwise fall back to UID for the resolver
                 names.append(item.get("name") or item.get("uid") or "Unknown")
             elif isinstance(item, str):
                 names.append(item)
@@ -114,6 +118,7 @@ def extract_rule_details(rule):
     else:
         action = str(action_obj) if action_obj is not None else "None"
 
+    # Safely handle tracking/logging
     track_obj = rule.get("track", {})
     if isinstance(track_obj, dict):
         track_type = track_obj.get("type", {})
@@ -149,8 +154,69 @@ def parse_rulebase(rulebase_list):
     return flat_rules
 
 
-def export_rules(server, username, password, insecure=False):
-    """Orchestrates the single-session fetch and export workflow using details-level: full."""
+def extract_unique_uids(rules):
+    """Finds all unique 36-character UIDs across all relevant rule fields."""
+    uids = set()
+    for rule in rules:
+        # Check list fields
+        for field in ["source", "destination", "service"]:
+            items = rule.get(field, [])
+            for item in items:
+                if isinstance(item, str) and len(item) == 36 and "-" in item:
+                    uids.add(item)
+        # Check single value fields
+        for field in ["action", "log"]:
+            val = rule.get(field)
+            if isinstance(val, str) and len(val) == 36 and "-" in val:
+                uids.add(val)
+    return uids
+
+
+def resolve_uids_in_memory(client, rules):
+    """Performs secondary show-object lookups to resolve UIDs into names."""
+    unique_uids = extract_unique_uids(rules)
+    if not unique_uids:
+        print("No unassigned UIDs found to resolve.")
+        return rules
+
+    print(f"Found {len(unique_uids)} unique UIDs. Starting secondary object retrieval...")
+    uid_map = {}
+
+    for idx, uid in enumerate(unique_uids, 1):
+        # show-object looks up any UID regardless of class (host, network, service, action, etc.)
+        res = client.api_call("show-object", {"uid": uid})
+        if res.success:
+            obj_name = res.data.get("object", {}).get("name", uid)
+            uid_map[uid] = obj_name
+        else:
+            # If lookup fails (e.g. permission issue or deleted object), keep the UID
+            uid_map[uid] = uid
+        
+        # Live progress indicator
+        print(f" -> Resolving: {idx}/{len(unique_uids)} completed", end="\r")
+    print("\nSecondary object retrieval complete.")
+
+    # Map the resolved names back onto the rules structure
+    resolved_rules = []
+    for rule in rules:
+        resolved_rule = rule.copy()
+        
+        # Resolve lists
+        resolved_rule["source"] = [uid_map.get(s, s) for s in rule.get("source", [])]
+        resolved_rule["destination"] = [uid_map.get(d, d) for d in rule.get("destination", [])]
+        resolved_rule["service"] = [uid_map.get(srv, srv) for srv in rule.get("service", [])]
+        
+        # Resolve individual fields
+        resolved_rule["action"] = uid_map.get(rule.get("action"), rule.get("action"))
+        resolved_rule["log"] = uid_map.get(rule.get("log"), rule.get("log"))
+        
+        resolved_rules.append(resolved_rule)
+
+    return resolved_rules
+
+
+def export_and_resolve_rules(server, username, password, insecure=False):
+    """Orchestrates the single-session fetch, secondary resolution, and export workflow."""
     client_args = APIClientArgs(server=server, unsafe=insecure, unsafe_auto_accept=insecure)
 
     with APIClient(client_args) as client:
@@ -167,14 +233,14 @@ def export_rules(server, username, password, insecure=False):
             # 2. Choose/Get Layer within that Package
             layer_uid, layer_name = select_access_layer(client, package_name)
 
-            print(f"Fetching rules for layer '{layer_name}' with full details (no UID resolution needed)...")
+            print(f"Step 1/2: Fetching rule structure for layer '{layer_name}'...")
 
             all_rules = []
-            limit = 70
+            limit = 100
             offset = 0
             total = 1
 
-            # 3. Paginate through rulebase using Layer UID and details-level: full
+            # 3. Paginate through rulebase using Layer UID
             while offset < total:
                 rulebase_res = client.api_call(
                     "show-access-rulebase",
@@ -182,7 +248,7 @@ def export_rules(server, username, password, insecure=False):
                         "uid": layer_uid,
                         "limit": limit,
                         "offset": offset,
-                        "details-level": "full"
+                        "details-level": "standard"
                     }
                 )
 
@@ -196,27 +262,31 @@ def export_rules(server, username, password, insecure=False):
 
                 all_rules.extend(parse_rulebase(rulebase_list))
                 offset += limit
-                
                 print(f" -> Progress: Fetched {min(offset, total)}/{total} rules...", end="\r")
 
-            print(f"\nExtracted {len(all_rules)} rules from layer '{layer_name}'.")
+            print(f"\nExtracted {len(all_rules)} rules. Moving to object resolution...")
 
-            # 4. Export directly to JSON (No UID resolution functions needed!)
+            # 4. Perform secondary show-object retrieval in memory
+            print("Step 2/2: Resolving network objects, services, actions, and logs...")
+            final_rules = resolve_uids_in_memory(client, all_rules)
+
+            # 5. Export directly to JSON
             safe_package_name = package_name.lower().replace(" ", "_")
             safe_layer_name = layer_name.lower().replace(" ", "_")
-            output_file = f"{safe_package_name}_{safe_layer_name}_rules.json"
+            output_file = f"{safe_package_name}_{safe_layer_name}_rules_resolved.json"
             
             with open(output_file, "w", encoding="utf-8") as f:
-                json.dump(all_rules, f, indent=4)
+                json.dump(final_rules, f, indent=4)
 
-            print(f"Successfully exported {len(all_rules)} rules to '{output_file}'.")
+            print(f"Successfully exported and resolved {len(final_rules)} rules to '{output_file}'.")
 
         finally:
             # --- SINGLE LOGOUT ---
             client.api_call("logout")
 
+
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Export Check Point firewall rules to JSON.")
+    parser = argparse.ArgumentParser(description="Export and resolve Check Point firewall rules to JSON.")
     parser.add_argument("server", help="Management Server IP or Hostname")
     parser.add_argument("username", help="API Username")
     parser.add_argument("password", help="API Password")
@@ -228,4 +298,4 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    export_rules(args.server, args.username, args.password, insecure=args.insecure)
+    export_and_resolve_rules(args.server, args.username, args.password, insecure=args.insecure)
