@@ -6,8 +6,9 @@
 import argparse
 import json
 import sys
+import os
 from cpapi import APIClient, APIClientArgs
-
+output_file = "pkg.json"
 
 def select_policy_package(client):
     """Retrieves all policy packages and prompts the user to choose one."""
@@ -212,6 +213,95 @@ def get_and_save_rules(server, username, password, insecure=False):
         client.api_call("logout")
 
 
+def extract_unique_uids(rules):
+    """Finds all unique UIDs in the source, destination, service, action, and log fields."""
+    uids = set()
+    for rule in rules:
+        # Check list fields
+        for field in ["source", "destination", "service"]:
+            items = rule.get(field, [])
+            for item in items:
+                if isinstance(item, str) and len(item) == 36:
+                    uids.add(item)
+        # Check single value fields
+        for field in ["action", "log"]:
+            val = rule.get(field)
+            if isinstance(val, str) and len(val) == 36:
+                uids.add(val)
+    return uids
+
+
+def resolve_uids(server, username, password, json_file_path, insecure=False):
+    # 1. Load the existing JSON file
+    if not os.path.exists(json_file_path):
+        print(f"Error: File '{json_file_path}' not found.")
+        sys.exit(1)
+
+    with open(json_file_path, "r", encoding="utf-8") as f:
+        try:
+            rules = json.load(f)
+        except json.JSONDecodeError:
+            print(f"Error: '{json_file_path}' is not a valid JSON file.")
+            sys.exit(1)
+
+    # 2. Find all unique UIDs to minimize API calls
+    unique_uids = extract_unique_uids(rules)
+    print(f"Loaded {len(rules)} rules. Found {len(unique_uids)} unique UIDs to resolve.")
+
+    # 3. Connect to Check Point and resolve UIDs
+    uid_map = {}
+    client_args = APIClientArgs(server=server, unsafe=insecure, unsafe_auto_accept=insecure)
+
+    with APIClient(client_args) as client:
+        login_res = client.login(username, password)
+        if not login_res.success:
+            print("Login failed:", login_res.error_message)
+            sys.exit(1)
+
+        print("Resolving UIDs from Management Server (this may take a few seconds)...")
+        for idx, uid in enumerate(unique_uids, 1):
+            # show-object is the Swiss Army knife API call to look up any UID
+            res = client.api_call("show-object", {"uid": uid})
+            if res.success:
+                obj_name = res.data.get("object", {}).get("name", uid)
+                uid_map[uid] = obj_name
+            else:
+                # If lookup fails (e.g. object deleted or permission issue), keep UID
+                uid_map[uid] = uid
+            
+            # Print progress indicator
+            print(f" -> Progress: {idx}/{len(unique_uids)} resolved", end="\r")
+        print("\nAll UIDs successfully resolved.")
+
+        # Logout immediately to free up management sessions
+        client.api_call("logout")
+
+    # 4. Replace UIDs with resolved names in the rules structure
+    resolved_rules = []
+    for rule in rules:
+        resolved_rule = rule.copy()
+        
+        # Resolve lists
+        resolved_rule["source"] = [uid_map.get(s, s) for s in rule.get("source", [])]
+        resolved_rule["destination"] = [uid_map.get(d, d) for d in rule.get("destination", [])]
+        resolved_rule["service"] = [uid_map.get(srv, srv) for srv in rule.get("service", [])]
+        
+        # Resolve individual fields
+        resolved_rule["action"] = uid_map.get(rule.get("action"), rule.get("action"))
+        resolved_rule["log"] = uid_map.get(rule.get("log"), rule.get("log"))
+        
+        resolved_rules.append(resolved_rule)
+
+    # 5. Save the resolved data to a new file
+    base, ext = os.path.splitext(json_file_path)
+    output_file_res = f"{base}_resolved{ext}"
+    
+    with open(output_file_res, "w", encoding="utf-8") as f:
+        json.dump(resolved_rules, f, indent=4)
+
+    print(f"Successfully saved resolved rules to '{output_file_res}'.")
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Export Check Point firewall rules to JSON.")
     parser.add_argument("server", help="Management Server IP or Hostname")
@@ -226,3 +316,11 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     get_and_save_rules(args.server, args.username, args.password, insecure=args.insecure)
+	
+	resolve_uids(
+		args.server,
+		args.username,
+		args.password,
+		output_file,
+		insecure=args.insecure
+	)
