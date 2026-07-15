@@ -1,5 +1,5 @@
 # replace_roles_with_groups.py
-# script that reads your exported JSON rules, fetches all existing network groups from the Check Point Management Server, 
+# script that reads your exported JSON rules (from python3 export_rules.py localhost admin qqqq), fetches all existing network groups from the Check Point Management Server, 
 # and replaces the access-role in the rule's source with a network group sequentially (1st matched rule gets the 1st group, 
 # 2nd matched rule gets the 2nd group, and so on).
 # Whenever the script finds an item with "type": "access-role", it will swap just that item for the next available network group in line, 
