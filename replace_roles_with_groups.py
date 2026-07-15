@@ -8,17 +8,16 @@ import json
 import sys
 from cpapi import APIClient, APIClientArgs
 
-
 def get_all_network_groups(client):
     """Fetches all existing network groups from the Management Server."""
     groups = []
     offset = 0
-    limit = 200
+    limit = 500
 
     print("Fetching existing network groups from the server...")
     while True:
         res = client.api_call(
-            "show-groups", {"limit": limit, "offset": offset, "details-level": "basic"}
+            "show-groups", {"limit": limit, "offset": offset, "details-level": "standard"}
         )
         if not res.success:
             print(f"Failed to fetch network groups: {res.error_message}")
@@ -83,7 +82,7 @@ def replace_access_roles_with_groups(
                 old_sources = [s.get("name") for s in rule.get("source", [])]
                 assigned_group = network_groups[index]
 
-                # Prepare payload: replace entire source with the assigned network group UID/name
+                # Prepare payload: replace entire source with the assigned network group UID
                 payload = {
                     "layer": layer_name,
                     "uid": rule_uid,
