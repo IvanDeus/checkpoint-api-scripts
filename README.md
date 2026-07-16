@@ -6,6 +6,27 @@ Check Point firewall management API scripts collection to add or modify multiple
 Official Check Point API [cpapi library](https://github.com/CheckPointSW/cp_mgmt_api_python_sdk).
 
 ---
+## 📄 Script: `export_rules.py`
+
+### Description
+Python script that exports Check Point firewall rules via Management API to a resolved JSON file. Extracts sources, destinations, services, action, and log with full name/UID/type details.
+
+### Purpose
+Provide clean, human-readable firewall policy export for analysis, audit, and documentation.
+
+### Usage
+```bash
+python export_rules.py <server> <username> <password> [--insecure]
+```
+
+**Example:**
+```bash
+python export_rules.py 192.168.1.100 admin MyPass123
+```
+
+- Interactively selects Policy Package and Access Layer
+- Outputs: `package_layer_rules_resolved.json`
+---
 
 ## 📄 Script: `addaccessrolefromfile.py`
 
