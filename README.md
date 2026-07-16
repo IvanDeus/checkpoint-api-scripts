@@ -27,7 +27,27 @@ python export_rules.py 192.168.1.100 admin MyPass123
 - Interactively selects Policy Package and Access Layer
 - Outputs: `package_layer_rules_resolved.json`
 ---
+## 📄 Script: `replace_roles_with_groups.py`
 
+### Description
+Reads rules JSON (from `export_rules.py`), connects to Check Point Management Server, and replaces every `access-role` in rule sources with existing network groups (cycles through groups sequentially).
+
+### Purpose
+Convert access-role based rules to network-group based rules while preserving other source objects.
+
+### Usage
+```bash
+python replace_roles_with_groups.py <server> <username> <password> <input_json> <layer_name>
+```
+
+**Example:**
+```bash
+python replace_roles_with_groups.py 192.168.1.100 admin MyPass123 rules_resolved.json "Network Layer"
+```
+
+- Automatically publishes changes after updates.
+
+---
 ## 📄 Script: `addaccessrolefromfile.py`
 
 ### ✅ Purpose:
@@ -627,4 +647,4 @@ Each line includes:
 - Useful for documentation or discovery before bulk changes.
 
 ---
-[ivan deus] 
+2026 [ ivan deus ] 
