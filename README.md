@@ -48,6 +48,27 @@ python replace_roles_with_groups.py 192.168.1.100 admin MyPass123 rules_resolved
 - Automatically publishes changes after updates.
 
 ---
+## 📄 Script: `replace_roles_with_sec_roles.py`
+
+### Description
+Reads rules JSON (from `export_rules.py`), fetches access roles starting with "Sec" from Check Point server, and replaces `access-role` objects in rule sources with them (cycles sequentially with wrap-around).
+
+### Purpose
+Replace access-roles in sources with "Sec*" access roles while keeping other source objects intact.
+
+### Usage
+```bash
+python replace_roles_with_sec_roles.py <server> <username> <password> <input_json> <layer_name>
+```
+
+**Example:**
+```bash
+python replace_roles_with_sec_roles.py 192.168.1.100 admin MyPass123 rules_resolved.json "Network Layer"
+```
+
+- Automatically publishes changes.
+
+---
 ## 📄 Script: `addaccessrolefromfile.py`
 
 ### ✅ Purpose:
